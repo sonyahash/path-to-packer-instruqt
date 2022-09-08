@@ -1,0 +1,120 @@
+#!/bin/bash -l
+#
+# This script runs when the platform setup the challenge.
+#
+# The platform determines if the script was successful using the exit code of this
+# script. If the exit code is not 0, the script fails. 
+#
+set -euxo pipefail
+
+# This sequence is here to renew the HCP API token.
+# The token expires every 60 minutes and there is 
+# a chance that the user may require more time.
+
+# Declare your HCP and TFC credentials
+source $APP_HOME/hcp_credentials
+
+# Get HCP Packer API endpoints
+source $ASSETS_HOME/api/shortcuts.bash
+
+# Obtain a new token for this challenge
+export NEW_HCP_CLIENT_TOKEN=$(curl -s -u \
+  "${HCP_CLIENT_ID}:${HCP_CLIENT_SECRET}" \
+  --data 'grant_type=client_credentials&audience=https://api.hashicorp.cloud' \
+  'https://auth.hashicorp.com/oauth/token' \
+| jq -r ".access_token")
+
+sed -i "s/HCP_CLIENT_TOKEN=\".*\"/HCP_CLIENT_TOKEN=\"$NEW_HCP_CLIENT_TOKEN\"/" $APP_HOME/hcp_credentials
+
+# Obtain the AWS AMI ID to create a new EC2 instance
+export IMAGE_ID=$(aws ec2 describe-images \
+  --owners $AWS_ACCOUNT_ID \
+  | jq -r '.[] | .[] | .ImageId')
+
+# # We need to declare an AWS EC2 security group
+# aws ec2 create-security-group \
+# --group-name hashicups-demo \
+# --description "Hashicups Demo"
+
+# # Obtain the unique ID for the new security group
+# export AWS_DEFAULT_SG=$(aws ec2 describe-security-groups \
+# --group-name hashicups-demo \
+# | jq -r '.SecurityGroups[].GroupId')
+
+# # Open HTTP port 80 to the whole world
+# aws ec2 authorize-security-group-ingress \
+# --group-id $AWS_DEFAULT_SG \
+# --protocol tcp \
+# --port 80 \
+# --cidr 0.0.0.0/0
+
+# Launch a bare bones, free-range, glutten-free
+# AWS EC2 instance
+# aws ec2 run-instances \
+# --image-id $IMAGE_ID \
+# --instance-type t2.micro \
+# --associate-public-ip-address \
+# --security-group-ids $AWS_DEFAULT_SG
+
+# Counting on /root/.bashrc to instantiate the hcp_credentials
+# file upon starting the Terminal session
+
+cat << EOF > /etc/init.d/workflow-watchdog
+#!/bin/bash
+
+##################################################
+# We want these permanently during the session.
+# APP_HOME is where our explainer lives
+# ASSETS_HOME is where our resources reside
+##################################################
+export APP_HOME=/root/www
+export ASSETS_HOME=/root/assets
+
+##################################################
+# Declare the HCP and TFC credentials as they are.
+##################################################
+
+# python3 $WATCHDOG_HOME/tf-watchdog.py 2>&1 | tee /var/log/workflow-watchdog.log
+
+#------------------------------------------------------------Testing something out here (patricia)
+# set-workdir /root/hashicat-aws
+
+# cd /root/hashicat-aws
+
+# cat <<-EOF > remote_backend.tf
+# terraform {
+#   backend "remote" {
+#     hostname = "app.terraform.io"
+#     organization = "YOURORGANIZATION"
+#     workspaces {
+#       name = "hashicat-aws"
+#     }
+#   }
+# }
+# EOF
+
+# cat <<-EOF > /root/.terraform.d/credentials.tfrc.json
+# {
+#   "credentials": {
+#     "app.terraform.io": {
+#       "token": "YOURTOKEN"
+#     }
+#   }
+# }
+# EOF 
+#------------------------------------------------------------Testing something out here (patricia)
+
+exit 0
+EOF
+
+# chmod 755 /etc/init.d/workflow-watchdog
+# # cd /etc/rc3.d
+ln -s /etc/init.d/workflow-watchdog S03workflow-watchdog
+
+# The normal sequence is to start the watchdog service. However
+# we do not want to start it automatically, and instead allow
+# the user to start-and-stop while interacting with the track.
+#
+# service workflow-watchdog start
+
+exit 0

@@ -1,0 +1,42 @@
+#!/bin/bash -l
+#
+# This script runs when the platform setup the challenge.
+#
+# The platform determines if the script was successful using the exit code of this
+# script. If the exit code is not 0, the script fails. 
+#
+set -euxo pipefail
+
+check_counter=1
+
+##################################################
+# Need to allow empty variable. We are doing this
+# because JQ returns an empty string if it does
+# find a key:value pair. 
+##################################################
+set +u
+
+while [[ $check_counter -le 5 &&  -z "$TEST_VPC_ID" ]]
+  do
+    export TEST_VPC_ID=$(aws ec2 describe-vpcs | jq -r '.[] | .[] | .VpcId')
+
+    if [ -z "$TEST_VPC_ID" ]
+    then
+        aws ec2 create-default-vpc
+        sleep 5
+    fi
+  ((check_counter++))
+  done
+
+##################################################
+# Let's get back to more strict mode.
+##################################################
+set -u 
+
+if [ "$check_counter" -gt 5 ]; then
+  fail-message "Please restart your track."
+else
+  echo "AWS VPC ready."
+fi
+
+exit 0

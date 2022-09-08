@@ -1,0 +1,32 @@
+#!/bin/bash -l
+#
+# This script runs when the platform setup the challenge.
+#
+# The platform determines if the script was successful using the exit code of this
+# script. If the exit code is not 0, the script fails. 
+#
+set -euxo pipefail
+# This sequence is here to renew the HCP API token.
+# The token expires every 60 minutes and there is 
+# a chance that the user may require more time.
+
+# Declare your HCP and TFC credentials
+source $APP_HOME/hcp_credentials
+
+# Get HCP Packer API endpoints
+source $ASSETS_HOME/api/shortcuts.bash
+az login -u=INSTRUQT_AZURE_SUBSCRIPTION_AZURESUBSCRIPTION_USERNAME -p=INSTRUQT_AZURE_SUBSCRIPTION_AZURESUBSCRIPTION_PASSWORD --allow-no-subscriptions
+
+# Obtain a new token for this challenge
+export NEW_HCP_CLIENT_TOKEN=$(curl -s -u \
+  "${HCP_CLIENT_ID}:${HCP_CLIENT_SECRET}" \
+  --data 'grant_type=client_credentials&audience=https://api.hashicorp.cloud' \
+  'https://auth.hashicorp.com/oauth/token' \
+| jq -r ".access_token")
+
+sed -i "s/HCP_CLIENT_TOKEN=\".*\"/HCP_CLIENT_TOKEN=\"$NEW_HCP_CLIENT_TOKEN\"/" $APP_HOME/hcp_credentials
+
+# Counting on /root/.bashrc to instantiate the hcp_credentials
+# file upon starting the Terminal session
+
+exit 0

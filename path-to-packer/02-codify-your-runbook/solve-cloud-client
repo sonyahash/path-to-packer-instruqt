@@ -1,0 +1,17 @@
+#!/bin/bash
+#
+# This script runs when the platform solve the challenge.
+#
+# The platform determines if the script was successful using the exit code of this
+# script. If the exit code is not 0, the script fails. 
+#
+set -euxo pipefail
+
+aws ec2 copy-image \
+    --region us-east-2 \
+    --name ami-name \
+    --source-region us-east-2 \
+    --source-image-id ami-0e2a56ff9dd374732 \
+    --description "This is a copied Ubuntu Focal 20.4 image."
+
+exit 0

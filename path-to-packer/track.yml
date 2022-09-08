@@ -1,0 +1,28 @@
+slug: path-to-packer
+id: vd9omqsavijj
+type: track
+title: Path to Packer
+teaser: Explore the Path to Packer by using HCP Packer and Terraform Cloud
+description: |-
+  Explore the Path to Packer by using HCP Packer and Terraform Cloud with three scenarios:
+
+  1. Converting a manual runbook to Packer Script
+  2. Building an AWS image with HCP and TFC
+  3. Adding Azure as a second cloud provider
+icon: https://raw.githubusercontent.com/interrupt-software/hcp-packer-explainer/master/www/app/static/img/Packer_VerticalLogo_Color_RGB.svg
+level: beginner
+tags:
+- HashiCorp
+- HCP
+- Packer
+- Terraform
+- TFC
+owner: hashicorp
+developers:
+- sonya@hashicorp.com
+- jenna.wong@hashicorp.com
+- patricia.rojasperez@hashicorp.com
+private: false
+published: true
+show_timer: true
+checksum: "8921201917931430727"

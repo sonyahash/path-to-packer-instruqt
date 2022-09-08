@@ -1,0 +1,152 @@
+#!/bin/bash -l
+aws configure set region us-east-2 --profile default
+aws ec2 create-default-vpc || true
+
+until [ -f /opt/instruqt/bootstrap/host-bootstrap-completed ]; do
+    echo "Waiting for Instruqt bootstrap to complete"
+    sleep 1
+done
+
+export DEBIAN_FRONTEND=noninteractive
+export TZ=America/Toronto
+
+apt update && sudo apt upgrade
+apt-get install python3-pip -y 
+apt-get install python3-venv -y
+/usr/local/bin/python -m pip install --upgrade pip
+pip3 install uwsgi
+pip3 install watchfiles
+pip3 install python-terraform
+
+#instal aws cli ---------------------------------------------------HOPEFULLY THIS WORKS!!!!!!!!!
+curl -L https://aka.ms/InstallAzureCli | bash
+
+wget https://releases.hashicorp.com/packer/1.8.0/packer_1.8.0_linux_amd64.zip
+unzip packer_1.8.0_linux_amd64.zip
+mv packer /usr/local/bin/packer
+
+wget https://releases.hashicorp.com/terraform/1.1.9/terraform_1.1.9_linux_amd64.zip
+unzip terraform_1.1.9_linux_amd64.zip
+mv terraform /usr/local/bin/terraform
+
+export APP_HOME=/root/www
+export FLASK_ENV=development
+export FLASK_APP=explainer.py
+export ENV_DIR=${APP_HOME}
+
+cd /root
+git clone https://github.com/sonyahash/path-to-packer.git
+mv path-to-packer/www ${APP_HOME}
+mv path-to-packer/assets /root
+
+# Clean up our downloads
+rm -fR /root/path-to-packer
+rm -f /root/packer_1.8.0_linux_amd64.zip
+rm -f /root/terraform_1.1.9_linux_amd64.zip
+
+# Create WebApp environment
+
+cd ${APP_HOME}
+python3 -m venv ${APP_HOME}/venv
+source venv/bin/activate
+pip3 install -e .
+pip3 install -r requirements.txt
+deactivate
+
+# We load the app the old-fashioned way
+# because the Instruqt client does not 
+# load the systemd package.
+cat << EOF > /etc/init.d/hcp-demo-explainer
+#!/bin/bash
+
+export APP_HOME=/root/www
+export FLASK_ENV=development
+export FLASK_APP=explainer.py
+export ENV_DIR=${APP_HOME}
+
+cd ${APP_HOME}
+source venv/bin/activate
+uwsgi --ini ${APP_HOME}/explainer.ini 
+EOF
+
+chmod 755 /etc/init.d/hcp-demo-explainer
+cd /etc/rc3.d
+ln -s /etc/init.d/hcp-demo-explainer S02hcp-demo-explainer
+service hcp-demo-explainer start
+sleep 5
+
+# All of the above is persistent. In the past we
+# used to run in Dev mode like so: 
+# flask run --host=0.0.0.0 2>&1 &
+
+##################################################
+# Ensure WebApp is running. Otherwise there are 
+# no directions on how to use the demo. We will 
+# wait up to 30 seconds before failing nicely.
+##################################################
+
+check_counter=1
+flask_running="false"
+
+##################################################
+# Need to allow empty variable. We are doing this
+# because JQ returns an empty string if it does
+# find a key:value pair. -u will cause a fail msg
+##################################################
+set +u
+
+while [[ $check_counter -le 6 && "$flask_running" != "true" ]]
+do
+  echo "Entering while loop in cycle No.: ${check_counter}."
+  if [[ $(curl -s http://127.0.0.1:5000/health | jq -r '.success') ]]; then
+    flask_running="true"
+    echo "flask_running: ${flask_running}, check_counter: ${check_counter} -- And we're done!"
+  else 
+    echo "flask_running: ${flask_running}, check_counter: ${check_counter} -- Trying again in 5 seconds."
+    sleep 5
+  fi
+  ((check_counter++))
+done
+
+##################################################
+# Let's get back to more strict mode.
+##################################################
+set -u 
+
+if [ "$flask_running" == "false" ]; then
+  fail-message "Unable to start Flask application."
+fi
+
+# June 06 - We're not using Demo Magic
+# export DEMO_MAGIC=/root/demo-magic
+##################################################
+# Demo Magic to avoid typying
+##################################################
+#git clone https://github.com/paxtonhare/demo-magic.git $DEMO_MAGIC
+#sed -i 's/DEMO_CMD_COLOR=$WHITE/DEMO_CMD_COLOR=$GREEN/g' $DEMO_MAGIC/demo-magic.sh
+
+##################################################
+# ~/.bashrc ENV changes by HashiCorp
+##################################################
+#echo "# ENV changes by HashiCorp" >> /root/.bashrc
+#echo "export DEMO_MAGIC=/root/demo-magic" >> /root/.bashrc
+
+##################################################
+# We want these permanently during the session.
+# APP_HOME is where our explainer lives
+# ASSETS_HOME is where our resources reside
+##################################################
+echo "export APP_HOME=/root/www" >> /root/.bashrc 
+echo "export ASSETS_HOME=/root/assets" >> /root/.bashrc
+
+##################################################
+# Declare the HCP and TFC credentials as they are.
+##################################################
+echo "source \$APP_HOME/hcp_credentials" >> /root/.bashrc
+
+##################################################
+# Simplify the HCP Packer API endpoints with these
+# shortcuts. These are best to minimize typing 
+# during the step-by-step scenarios.
+##################################################
+echo "source \$ASSETS_HOME/api/shortcuts.bash" >> /root/.bashrc

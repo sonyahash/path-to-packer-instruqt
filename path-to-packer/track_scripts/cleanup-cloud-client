@@ -1,0 +1,47 @@
+#!/bin/bash -l
+#
+# This script runs when the platform cleanup the challenge.
+#
+# The platform determines if the script was successful using the exit code of this
+# script. If the exit code is not 0, the script fails. 
+#
+
+# Use the credentials we obtained from the user
+source $APP_HOME/hcp_credentials
+
+# Use the API shortcuts for convenience... I hear you singing:
+# "Why'd you have to go and make things so complicated? pa-rrah-pah-pah!"
+source $ASSETS_HOME/api/shortcuts.bash
+
+# Clean up HCP Registry and remove bucket "hashicat-packer-ubuntu"
+curl -s -H "Authorization: Bearer ${HCP_CLIENT_TOKEN}" \
+  -X DELETE $HCP_PACKER_DELETE_BUCKET 
+
+# Remove TFC Workspace
+curl -s -k \
+  --header "Authorization: Bearer $TFE_TOKEN" \
+  --header "Content-Type: application/vnd.api+json" \
+  --request DELETE \
+  $TFC_API_DELETE_WORKSPACE
+
+# Remove any EC2 instances related that are owned by our own account:
+for ec2instance in $(aws ec2 describe-instances \
+  --filters "Name=instance-type,Values=t2.micro" \
+  --query "Reservations[].Instances[].InstanceId" \
+  | jq -r '.[]')
+  do
+    aws ec2 terminate-instances \
+    --instance-ids $ec2instance
+  done
+
+# Remove any AWS AMI copies owned by this client
+for ami in $(aws ec2 describe-images \
+    --owners $AWS_ACCOUNT_ID \
+    | jq -r '.[] | .[] | .ImageId')
+  do
+    aws ec2 deregister-image \
+    --image-id $ami
+  done
+
+exit 0
+

@@ -1,0 +1,26 @@
+#!/bin/bash
+#
+# This script runs when the platform solve the challenge.
+#
+# The platform determines if the script was successful using the exit code of this
+# script. If the exit code is not 0, the script fails. 
+#
+set -euxo pipefail
+
+declare -a hcp_variables=("HCP_ORGANIZATION_ID" "HCP_PROJECT_ID" "HCP_CLIENT_ID" "HCP_CLIENT_SECRET" "HCP_CLIENT_TOKEN")
+
+declare -a tfc_variables=("TFE_ORG" "TFE_TOKEN" "TFE_WORKSPACE")
+
+if [ -f "/root/www/hcp_credentials" ]; then
+   echo "Moving on from /root/www/hcp_credentials"
+else
+    for var_name in "${hcp_variables[@]}"; do
+      echo "export ${var_name}=solve_client_default_for_testing" >> /root/www/hcp_credentials
+    done
+
+    for var_name in "${tfc_variables[@]}"; do
+      echo "export ${var_name}=solve_client_default_for_testing" >> /root/www/hcp_credentials
+    done
+fi
+
+exit 0

@@ -1,0 +1,51 @@
+#!/bin/bash -l
+#!/bin/bash
+set -euxo pipefail
+
+if ! grep "hcp_packer_registry" /root/assets/packer/development/ubuntu_base.pkr.hcl; then
+    fail-message "The template is not complete. Please fully convert the runbook."
+fi
+#
+# This script runs when the platform check the challenge.
+#
+# The platform determines if the script was successful using the exit code of this
+# script. If the exit code is not 0, the script fails. 
+#
+set -euxo pipefail
+
+source /root/www/hcp_credentials
+
+##################################################
+# Need to allow empty variable. We are doing this
+# because JQ returns an empty string if it does
+# find a key:value pair. 
+##################################################
+set +u
+
+##################################################
+# We are expecting a unique AWS ImageID with a 
+# twenty character lengh and somewhat like this: 
+#
+# ami-0058783dcbd4a40c8
+#
+##################################################
+imageID=$(aws ec2 describe-images \
+          --owners $AWS_ACCOUNT_ID \
+          | jq -r '.[] | .[] | .ImageId')
+
+##################################################
+# Let's get back to more strict mode.
+##################################################
+set -u 
+
+#if [ -z "$imageID" ]; then     
+#  fail-message "We cannot find an AWS AMI associated with your acccount. Did you follow step 3.1?"
+#fi 
+
+# var_length=$(echo $imageID | wc -c)
+
+# if [ "$var_length" -lt 10 ]; then
+#     fail-message "The ${imageID} does not seem to have a valid name."
+# fi
+
+exit 0
